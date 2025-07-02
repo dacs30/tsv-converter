@@ -1,102 +1,160 @@
-import Image from "next/image";
+"use client";
+import React, { useState } from "react";
+import {
+  parseCSV,
+  parseTSV,
+  toCSV,
+  toTSV,
+  parseExcel,
+  toExcel,
+} from "./utils";
+
+const fileTypes = [
+  { label: "CSV", value: "csv" },
+  { label: "TSV", value: "tsv" },
+  { label: "Excel", value: "excel" },
+];
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [inputType, setInputType] = useState("csv");
+  const [outputType, setOutputType] = useState("tsv");
+  const [table, setTable] = useState<string[][]>([]);
+  const [fileName, setFileName] = useState("");
+  const [error, setError] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    try {
+      let data: string[][] = [];
+      if (inputType === "csv") {
+        const text = await file.text();
+        data = parseCSV(text);
+      } else if (inputType === "tsv") {
+        const text = await file.text();
+        data = parseTSV(text);
+      } else if (inputType === "excel") {
+        data = await parseExcel(file);
+      }
+      setTable(data);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (err) {
+      setError("Failed to parse file.");
+    }
+  };
+
+  const handleDownload = () => {
+    if (!table.length) return;
+    if (outputType === "csv") {
+      const blob = new Blob([toCSV(table)], { type: "text/csv" });
+      downloadBlob(blob, fileName.replace(/\.[^.]+$/, ".csv"));
+    } else if (outputType === "tsv") {
+      const blob = new Blob([toTSV(table)], { type: "text/tab-separated-values" });
+      downloadBlob(blob, fileName.replace(/\.[^.]+$/, ".tsv"));
+    } else if (outputType === "excel") {
+      toExcel(table, fileName.replace(/\.[^.]+$/, ".xlsx"));
+    }
+  };
+
+  function downloadBlob(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800 text-foreground flex flex-col items-center justify-center px-4 py-10">
+      <div className="w-full max-w-5xl bg-white/80 dark:bg-zinc-900/80 rounded-3xl shadow-2xl p-8 flex flex-col items-center gap-8 border border-zinc-200 dark:border-zinc-800 backdrop-blur-md">
+        <h1 className="text-4xl font-bold tracking-tight text-center">CSV · TSV · Excel Converter</h1>
+        <div className="w-full flex flex-col md:flex-row md:items-end gap-6 md:gap-4 justify-center">
+          <div className="flex flex-col gap-2 w-full md:w-1/4">
+            <label className="font-semibold text-zinc-700 dark:text-zinc-200">Input Type</label>
+            <select
+              className="border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              value={inputType}
+              onChange={(e) => setInputType(e.target.value)}
+            >
+              {fileTypes.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-2 w-full md:w-2/5">
+            <label className="font-semibold text-zinc-700 dark:text-zinc-200">Upload File</label>
+            <input
+              type="file"
+              accept={
+                inputType === "csv"
+                  ? ".csv"
+                  : inputType === "tsv"
+                  ? ".tsv"
+                  : ".xls,.xlsx"
+              }
+              className="border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-400 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              onChange={handleFile}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+          <div className="flex flex-col gap-2 w-full md:w-1/4">
+            <label className="font-semibold text-zinc-700 dark:text-zinc-200">Output Type</label>
+            <select
+              className="border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              value={outputType}
+              onChange={(e) => setOutputType(e.target.value)}
+            >
+              {fileTypes.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+        <div className="w-full flex flex-col md:flex-row gap-4 items-center justify-center">
+          <button
+            className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold px-8 py-3 rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+            onClick={handleDownload}
+            disabled={!table.length}
+          >
+            Download
+          </button>
+        </div>
+        {error && <div className="text-red-500 text-center w-full">{error}</div>}
+        {table.length > 0 && (
+          <div className="overflow-x-auto w-full max-w-3xl border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow bg-white/90 dark:bg-zinc-900/90">
+            <table className="min-w-full border-collapse text-zinc-800 dark:text-zinc-100 text-base">
+              <tbody>
+                {table.map((row, i) => (
+                  <tr key={i} className="border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition">
+                    {row.map((cell, j) => (
+                      <td
+                        key={j}
+                        className="px-4 py-3 border-r border-zinc-100 dark:border-zinc-800 last:border-r-0 whitespace-pre-line max-w-xs truncate"
+                        title={cell}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {table.length > 20 && (
+              <div className="text-xs text-center p-2 text-zinc-500 dark:text-zinc-400">
+                Showing first 20 rows of {table.length}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <footer className="mt-10 text-zinc-400 text-xs text-center select-none">
+        &copy; {new Date().getFullYear()} CSV/TSV/Excel Converter.
       </footer>
     </div>
   );
